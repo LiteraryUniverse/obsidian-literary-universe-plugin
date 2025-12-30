@@ -1,0 +1,11 @@
+{
+	"id": "literary-universe",
+	"name": "Literary Universe",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "Connect your Obsidian notes to Literary Universe",
+	"author": "Jan Dvorak",
+	"authorUrl": "https://jandvorak.me",
+	"fundingUrl": "https://github.com/sponsors/storytellercz",
+	"isDesktopOnly": false
+}
