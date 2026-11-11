@@ -1,5 +1,16 @@
-import { LiteraryUniverseClient } from '@literary-universe/sdk'
+import { LiteraryUniverseApiError, LiteraryUniverseClient } from '@literary-universe/sdk'
 import { Notice, Plugin, requestUrl } from 'obsidian'
+import {
+	CALLBACK_ACTION,
+	finishSignIn,
+	OAuthError,
+	type PendingSignIn,
+	refreshSession,
+	revokeSession,
+	type Session,
+	startSignIn,
+} from './oauth'
+import { callbackCode } from './pkce'
 import { DEFAULT_SETTINGS, type LiteraryUniverseSettings, LiteraryUniverseSettingsTab } from './settings'
 import { type SyncReport, sync } from './sync'
 
@@ -37,13 +48,24 @@ function summary(report: SyncReport) {
 	return lines.join('\n\n')
 }
 
+/** The sign-in lives in Obsidian's keychain, never in the vault or data.json. */
+const SESSION_SECRET = 'literary-universe-session'
+/** Refresh a little early so a token doesn't expire in the middle of a sync. */
+const REFRESH_MARGIN_MS = 5 * 60_000
+const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
+
 export default class LiteraryUniversePlugin extends Plugin {
 	declare settings: LiteraryUniverseSettings
 	private syncing = false
+	/** shortcut: kept in memory, so a sign-in doesn't survive Obsidian restarting midway; it just has to be started again. */
+	private pending?: PendingSignIn
+	private settingsTab?: LiteraryUniverseSettingsTab
 
 	async onload(): Promise<void> {
 		await this.loadSettings()
-		this.addSettingTab(new LiteraryUniverseSettingsTab(this.app, this))
+		this.settingsTab = new LiteraryUniverseSettingsTab(this.app, this)
+		this.addSettingTab(this.settingsTab)
+		this.registerObsidianProtocolHandler(CALLBACK_ACTION, (params) => this.completeSignIn(params))
 		this.addRibbonIcon('refresh-cw', 'Sync with Literary Universe', () => this.sync())
 		this.addCommand({
 			id: 'sync',
@@ -52,11 +74,72 @@ export default class LiteraryUniversePlugin extends Plugin {
 		})
 	}
 
+	/** The current sign-in for the configured server, if any. */
+	session(): Session | undefined {
+		try {
+			const saved = JSON.parse(this.app.secretStorage.getSecret(SESSION_SECRET) || 'null') as Session | null
+			return saved?.baseUrl === this.settings.baseUrl ? saved : undefined
+		} catch {
+			return undefined
+		}
+	}
+
+	private saveSession(session: Session | undefined) {
+		// SecretStorage has no delete; an empty value means signed out.
+		this.app.secretStorage.setSecret(SESSION_SECRET, session ? JSON.stringify(session) : '')
+		this.settingsTab?.refreshAccount()
+	}
+
+	async signIn() {
+		try {
+			const { pending, url } = await startSignIn(this.settings.baseUrl, this.app.vault.getName())
+			this.pending = pending
+			window.open(url)
+		} catch (error) {
+			new Notice(`Literary Universe sign-in failed: ${message(error)}`, 0)
+		}
+	}
+
+	private async completeSignIn(params: Record<string, string | undefined>) {
+		try {
+			const code = callbackCode(this.pending, params)
+			const pending = this.pending as PendingSignIn
+			this.pending = undefined
+			const session = await finishSignIn(pending, code)
+			this.saveSession(session)
+			new Notice(`Signed in to Literary Universe${session.username ? ` as ${session.username}` : ''}.`)
+		} catch (error) {
+			new Notice(`Literary Universe sign-in failed: ${message(error)}`, 0)
+		}
+	}
+
+	async signOut() {
+		const current = this.session()
+		this.saveSession(undefined)
+		// Best effort: the sign-in is gone here either way; it can also be disconnected on the site.
+		if (current) await revokeSession(current).catch((error) => console.warn('Literary Universe sign-out', error))
+	}
+
+	/** An access token for the SDK, refreshed when it's about to expire. */
+	private async accessToken() {
+		let current = this.session()
+		if (!current) throw new OAuthError('signed_out', 'Sign in to Literary Universe in the plugin settings first.')
+		if (current.accessExpiresAt - Date.now() < REFRESH_MARGIN_MS) {
+			try {
+				current = await refreshSession(current)
+			} catch (error) {
+				if (error instanceof OAuthError && error.code === 'invalid_grant') this.saveSession(undefined)
+				throw error
+			}
+			this.saveSession(current)
+		}
+		return { kind: 'api-key' as const, token: current.accessToken }
+	}
+
 	async sync() {
 		if (this.syncing) return
-		const token = this.settings.apiKeySecret && this.app.secretStorage.getSecret(this.settings.apiKeySecret)
-		if (!token) {
-			new Notice('Add your Literary Universe API key in the plugin settings first.')
+		if (!this.session()) {
+			new Notice('Sign in to Literary Universe in the plugin settings first.')
 			return
 		}
 		this.syncing = true
@@ -64,7 +147,8 @@ export default class LiteraryUniversePlugin extends Plugin {
 		try {
 			const client = new LiteraryUniverseClient({
 				baseUrl: this.settings.baseUrl,
-				token,
+				// The SDK sends OAuth access tokens the same way as API keys.
+				credentials: () => this.accessToken(),
 				fetch: obsidianFetch,
 				clientName: `obsidian-literary-universe/${this.manifest.version}`,
 				maxRetries: 2,
@@ -75,7 +159,9 @@ export default class LiteraryUniversePlugin extends Plugin {
 			new Notice(summary(report), failed ? 0 : 5000)
 		} catch (error) {
 			console.error('Literary Universe sync failed', error)
-			new Notice(`Literary Universe sync stopped: ${error instanceof Error ? error.message : String(error)}`, 0)
+			// Disconnected on the site, or the sign-in ran out: show Sign in again.
+			if (error instanceof LiteraryUniverseApiError && error.code === 'UNAUTHENTICATED') this.saveSession(undefined)
+			new Notice(`Literary Universe sync stopped: ${message(error)}`, 0)
 		} finally {
 			progress.hide()
 			this.syncing = false

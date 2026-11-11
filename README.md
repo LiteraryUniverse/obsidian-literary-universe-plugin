@@ -22,14 +22,21 @@ It needs Obsidian 1.11.4 or later, on desktop or mobile.
 
 ## Setup
 
-1. On Literary Universe, open *Settings → Integrations → API keys* and create a
-   key with the **Read stories** and **Edit stories** permissions. Name it
-   after the device, for example "Obsidian on my laptop".
-2. In Obsidian, open the plugin's settings and store the key under *API key*.
-   It is kept in Obsidian's keychain, not in your vault, so it isn't synced or
-   committed with your notes.
+1. In the plugin's settings, choose **Sign in**. Your browser opens Literary
+   Universe and asks you to let the plugin read and edit your stories.
+2. Allow it. The browser sends you back to Obsidian, and the settings show who
+   you're signed in as. This works the same on a phone.
 3. Run **Literary Universe: Sync stories** from the command palette, or click
    the sync icon in the ribbon.
+
+The plugin never sees your password. It keeps its sign-in in Obsidian's
+keychain, not in your vault, so it isn't synced or committed with your notes.
+A sign-in lasts 90 days, then the plugin asks you to sign in again. To end
+its access, choose **Sign out**, or disconnect it on Literary Universe under
+*Settings → Integrations*.
+
+More help: [Obsidian plugin](https://literaryuniverse.com/feedback/help/article/obsidian-plugin)
+in the Literary Universe help center.
 
 ## How sync works
 
@@ -80,6 +87,16 @@ To try a build, copy `main.js` and `manifest.json` into a test vault's
 authoring API through [`@literary-universe/sdk`](https://github.com/LiteraryUniverse/sdk-typescript),
 using Obsidian's `requestUrl` because the API doesn't send CORS headers. Point
 *Server* in the settings at a local deployment to test against it.
+
+Sign-in is OAuth with PKCE. The plugin registers itself with the server's
+dynamic client registration, once per sign-in. The OAuth server only redirects
+to HTTPS, and Obsidian on a phone can't listen on loopback, so the redirect is
+the server's `/api/obsidian/callback?vault=<vault name>`. That page sends the
+browser on to `obsidian://literary-universe` with only the OAuth result. The
+plugin checks `state` and `iss` before exchanging the code. Access tokens are
+refreshed five minutes before they expire, and refresh tokens rotate. If a
+refresh response is lost, the old refresh token is spent and the server ends
+the grant, so the plugin asks to sign in again; notes are not affected.
 
 ### Releasing
 
