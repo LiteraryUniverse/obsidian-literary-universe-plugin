@@ -22,6 +22,12 @@ export default tseslint.config(
 		},
 	},
 	...obsidianmd.configs.recommended,
+	{
+		plugins: { obsidianmd },
+		rules: {
+			'obsidianmd/ui/sentence-case': ['error', { brands: ['Literary Universe', 'Obsidian'] }],
+		},
+	},
 	globalIgnores([
 		"node_modules",
 		"dist",
@@ -30,5 +36,6 @@ export default tseslint.config(
 		"version-bump.mjs",
 		"versions.json",
 		"main.js",
+		"src/*.test.ts",
 	]),
 );

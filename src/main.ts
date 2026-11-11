@@ -1,55 +1,92 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin} from 'obsidian';
-import { LiteraryUniverseSettings, DEFAULT_SETTINGS, LiteraryUniverseSettingsTab } from './settings';
-import { LiteraryUniverseBase } from './base';
+import { LiteraryUniverseClient } from '@literary-universe/sdk'
+import { Notice, Plugin, requestUrl } from 'obsidian'
+import { DEFAULT_SETTINGS, type LiteraryUniverseSettings, LiteraryUniverseSettingsTab } from './settings'
+import { type SyncReport, sync } from './sync'
 
-/* TODO
- * Implement API key validation and user information retrieval
- * Store user ID and username in settings (if stored show them in the settings)
- * Clicking on the ribbon icon should open a BASE which will list all the connected properties from LU and their local elements
- * All connections from LU (be it file or otherwise) need to have LU type and ID added to them so that we can track them. Last updated date is also needed.
- * Items are synced by comparing the update date with LU server. If the local update date is more recent it will push the updated data to LU, if LU has more recent update then it needs to override local data.
- * First we want to sync the Scratchpad with LU. When module is loaded it should create a directory 'Scratchpads' where Scratchpads from LU will be stored. Right now we have only one Scratchpad, but that will change in the future. For now we will ignore any additional files created in the Scratchpad folder, but in the future we will sync them.
- * Next we want to sync personal notes. These will be stored in a 'Notes' directory. But we will care only about those that are synced with LU, any extras will be ignored.
+/**
+ * The API sends no CORS headers, so the SDK goes through Obsidian's requestUrl.
+ * shortcut: requestUrl can't be aborted, so the SDK's timeout only applies once it returns.
  */
+const obsidianFetch: typeof fetch = async (input, init) => {
+	const response = await requestUrl({
+		url: input as string, // the SDK always passes the endpoint as a string
+		method: init?.method,
+		headers: init?.headers as Record<string, string>,
+		body: init?.body as string | ArrayBuffer | undefined,
+		throw: false,
+	})
+	const empty = response.status === 204 || response.status === 304
+	return new Response(empty ? null : response.arrayBuffer, {
+		status: response.status,
+		headers: response.headers,
+	})
+}
 
+function summary(report: SyncReport) {
+	const parts = [
+		`${report.created} new`,
+		`${report.updated} updated`,
+		`${report.pushed} sent to Literary Universe`,
+	]
+	const lines = [`Literary Universe: ${parts.join(', ')}.`]
+	if (report.conflicts.length)
+		lines.push(
+			`Changed in both places, merge from the "(Literary Universe)" copy, delete it, then sync again:\n${report.conflicts.join('\n')}`,
+		)
+	if (report.failures.length) lines.push(`Not synced:\n${report.failures.join('\n')}`)
+	return lines.join('\n\n')
+}
 
 export default class LiteraryUniversePlugin extends Plugin {
-    settings: LiteraryUniverseSettings
+	declare settings: LiteraryUniverseSettings
+	private syncing = false
 
-    async onload(): Promise<void> {
-        await this.loadSettings();
-        
-        this.addRibbonIcon('sparkle', 'Literary Universe', (evt: MouseEvent) => {
-            // First check that we have the API key
-            if (!this.settings.apiKey) {
-                new Notice('Please enter your Literary Universe API key in settings');
-                return;
-            } else {
-                // Check if the key is valid and get user id and username from LU if we don't have it already
-                new Notice('Literary Universe plugin loaded!');
-            }
-        });
+	async onload(): Promise<void> {
+		await this.loadSettings()
+		this.addSettingTab(new LiteraryUniverseSettingsTab(this.app, this))
+		this.addRibbonIcon('refresh-cw', 'Sync with Literary Universe', () => this.sync())
+		this.addCommand({
+			id: 'sync',
+			name: 'Sync stories',
+			callback: () => this.sync(),
+		})
+	}
 
-        this.addSettingTab(new LiteraryUniverseSettingsTab(this.app, this));
+	async sync() {
+		if (this.syncing) return
+		const token = this.settings.apiKeySecret && this.app.secretStorage.getSecret(this.settings.apiKeySecret)
+		if (!token) {
+			new Notice('Add your Literary Universe API key in the plugin settings first.')
+			return
+		}
+		this.syncing = true
+		const progress = new Notice('Syncing with Literary Universe…', 0)
+		try {
+			const client = new LiteraryUniverseClient({
+				baseUrl: this.settings.baseUrl,
+				token,
+				fetch: obsidianFetch,
+				clientName: `obsidian-literary-universe/${this.manifest.version}`,
+				maxRetries: 2,
+				timeoutMs: 60_000,
+			})
+			const report = await sync(this.app, client, this.settings.folder)
+			const failed = report.conflicts.length + report.failures.length > 0
+			new Notice(summary(report), failed ? 0 : 5000)
+		} catch (error) {
+			console.error('Literary Universe sync failed', error)
+			new Notice(`Literary Universe sync stopped: ${error instanceof Error ? error.message : String(error)}`, 0)
+		} finally {
+			progress.hide()
+			this.syncing = false
+		}
+	}
 
-        this.registerBasesView('literary-universe-base', {
-            name: 'Literary Universe Base',
-            icon: 'sparkle',
-            factory: (controller, containerEl) => {
-                new LiteraryUniverseBase(controller, containerEl);
-            }
-        });
-    }
+	async loadSettings() {
+		this.settings = { ...DEFAULT_SETTINGS, ...((await this.loadData()) as Partial<LiteraryUniverseSettings> | null) }
+	}
 
-    onunload(): void {
-        console.log('Literary Universe plugin unloaded');
-    }
-
-    async loadSettings() {
-        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-    }
-
-    async saveSettings() {
-        await this.saveData(this.settings);
-    }
+	async saveSettings() {
+		await this.saveData(this.settings)
+	}
 }
