@@ -95,12 +95,13 @@ const describe = (error: unknown) =>
 		? `${error.code}: ${error.message}${error.requestId ? ` (request ${error.requestId})` : ''}`
 		: String(error)
 
-/** Errors that stop the whole sync instead of one chapter. */
+/**
+ * Errors that stop the whole sync instead of one chapter. FORBIDDEN isn't one:
+ * a chapter you can read but not edit (as a beta reader) must not block the rest.
+ */
 const fatal = (error: unknown) =>
 	error instanceof LiteraryUniverseApiError &&
-	['UNAUTHENTICATED', 'FORBIDDEN', 'RATE_LIMITED', 'REDIRECTED', 'INVALID_CONFIGURATION'].includes(
-		error.code,
-	)
+	['UNAUTHENTICATED', 'RATE_LIMITED', 'REDIRECTED', 'INVALID_CONFIGURATION'].includes(error.code)
 
 /** Pull first, never overwriting an edited note, then push what changed locally. */
 export async function sync(app: App, client: LiteraryUniverseClient, root: string): Promise<SyncReport> {
@@ -142,6 +143,9 @@ export async function sync(app: App, client: LiteraryUniverseClient, root: strin
 					report.created++
 				} else if (note && action === 'overwrite') {
 					await app.vault.modify(note.file, render(meta, body))
+					// The note now matches the server, so the push below must not resend it.
+					note.meta = meta
+					note.hash = meta.lu_hash
 					report.updated++
 				} else if (note && action === 'conflict') {
 					const copy = normalizePath(`${note.file.parent?.path ?? folder}/${note.file.basename}${CONFLICT_SUFFIX}.md`)

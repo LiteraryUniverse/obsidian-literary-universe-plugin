@@ -42,7 +42,7 @@ in the Literary Universe help center.
 
 Each sync first pulls, then pushes.
 
-- **Pull:** every story you can edit becomes a folder under *Literary Universe*
+- **Pull:** every story in your workshop, including ones shared with you, becomes a folder under *Literary Universe*
   (change the folder in the settings), with one note per chapter:
   `Literary Universe/My Story/01 The Beginning.md`. Chapters that haven't changed
   since the last sync are not downloaded again.

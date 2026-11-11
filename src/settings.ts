@@ -65,6 +65,8 @@ export class LiteraryUniverseSettingsTab extends PluginSettingTab {
 				text.setValue(this.plugin.settings.baseUrl).onChange(async (value) => {
 					this.plugin.settings.baseUrl = value.trim().replace(/\/+$/, '') || DEFAULT_SETTINGS.baseUrl
 					await this.plugin.saveSettings()
+					// Each server has its own sign-in.
+					this.refreshAccount()
 				}),
 			)
 	}
