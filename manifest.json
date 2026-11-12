@@ -3,7 +3,7 @@
 	"name": "Literary Universe",
 	"version": "0.1.0",
 	"minAppVersion": "1.11.4",
-	"description": "Write your Literary Universe stories in Obsidian: sync chapters as Markdown notes and send your edits back as drafts.",
+	"description": "Write your Literary Universe stories as Markdown notes and send your edits back as drafts.",
 	"author": "Jan Dvorak",
 	"authorUrl": "https://jandvorak.me",
 	"fundingUrl": "https://github.com/sponsors/storytellercz",
