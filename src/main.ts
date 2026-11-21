@@ -31,11 +31,13 @@ import { obsidianFiles, obsidianYaml } from './vaultFiles'
  * shortcut: requestUrl can't be aborted, so the SDK's timeout only applies once it returns.
  */
 const obsidianFetch: typeof fetch = async (input, init) => {
+	const body = init?.body
 	const response = await requestUrl({
-		url: input as string, // the SDK always passes the endpoint as a string
+		url: input instanceof URL ? input.href : (input as string),
 		method: init?.method,
 		headers: init?.headers as Record<string, string>,
-		body: init?.body as string | ArrayBuffer | undefined,
+		// Cover uploads send bytes; requestUrl takes an ArrayBuffer, not a view.
+		body: body instanceof Uint8Array ? new Uint8Array(body).buffer : (body as string | ArrayBuffer | undefined),
 		throw: false,
 	})
 	const empty = response.status === 204 || response.status === 304
