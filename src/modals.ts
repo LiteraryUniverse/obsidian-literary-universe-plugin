@@ -175,6 +175,7 @@ export class CreateWorkModal extends Modal {
 						const missing = [
 							!work.title && 'title',
 							!work.slug && 'address',
+							!work.description && 'description',
 							!work.language && 'language',
 							!work.genre && 'genre',
 							!work.rating && 'rating',
