@@ -25,7 +25,7 @@
 		"typescript-eslint": "8.51.0"
 	},
 	"dependencies": {
-		"@literary-universe/sdk": "github:LiteraryUniverse/sdk-typescript#29cc19bcdddacc2ad32ccda9dd65f2e06fb91000",
+		"@literary-universe/sdk": "github:LiteraryUniverse/sdk-typescript#99387a95130e25e737f94ad0b59c7e6edbd170a9",
 		"obsidian": "1.14.4"
 	}
 }
