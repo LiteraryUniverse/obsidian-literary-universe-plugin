@@ -48,9 +48,12 @@ export class LiteraryUniverseSettingsTab extends PluginSettingTab {
 		this.accountEl = containerEl.createDiv()
 		this.refreshAccount()
 
+		const mode = new Setting(containerEl).setName('What syncs')
+		void this.plugin.mode().then((found) => mode.setDesc('error' in found ? found.error : found.label))
+
 		new Setting(containerEl)
 			.setName('Folder')
-			.setDesc('Where your stories are kept in this vault.')
+			.setDesc('Where your stories are kept in this vault. A vault set up with "lu init" in the Literary Universe CLI uses its own layout instead.')
 			.addText((text) =>
 				text.setValue(this.plugin.settings.folder).onChange(async (value) => {
 					this.plugin.settings.folder = value.trim() || DEFAULT_SETTINGS.folder

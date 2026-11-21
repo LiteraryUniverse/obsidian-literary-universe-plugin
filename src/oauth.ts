@@ -1,9 +1,10 @@
 import { requestUrl } from 'obsidian'
+import { API_SCOPES } from './helpers'
 import { codeChallenge, randomToken, type Started, usernameFromIdToken } from './pkce'
 
 /** obsidian://literary-universe is where the site's /api/obsidian/callback sends the browser back. */
 export const CALLBACK_ACTION = 'literary-universe'
-const SCOPES = 'openid profile story:read story:write'
+const SCOPES = `openid profile ${API_SCOPES.join(' ')}`
 
 export type Session = {
 	baseUrl: string
@@ -13,6 +14,8 @@ export type Session = {
 	accessExpiresAt: number
 	refreshToken: string
 	username?: string
+	/** Space-separated scopes the server granted; missing on sessions from plugin 0.1. */
+	scope?: string
 }
 
 type Metadata = {
@@ -31,7 +34,13 @@ export type PendingSignIn = Started & {
 	verifier: string
 }
 
-type TokenResponse = { access_token: string; expires_in: number; refresh_token: string; id_token?: string }
+type TokenResponse = {
+	access_token: string
+	expires_in: number
+	refresh_token: string
+	id_token?: string
+	scope?: string
+}
 
 export class OAuthError extends Error {
 	constructor(
@@ -71,13 +80,14 @@ async function discover(baseUrl: string) {
 	return response.json as Metadata
 }
 
-const session = (baseUrl: string, clientId: string, token: TokenResponse, username?: string): Session => ({
+const session = (baseUrl: string, clientId: string, token: TokenResponse, previous?: Session): Session => ({
 	baseUrl,
 	clientId,
 	accessToken: token.access_token,
 	accessExpiresAt: Date.now() + token.expires_in * 1000,
 	refreshToken: token.refresh_token,
-	username: usernameFromIdToken(token.id_token) ?? username,
+	username: usernameFromIdToken(token.id_token) ?? previous?.username,
+	scope: token.scope ?? previous?.scope,
 })
 
 /**
@@ -139,7 +149,7 @@ export async function refreshSession(current: Session) {
 	const token = await post<TokenResponse>(metadata.token_endpoint, {
 		form: { grant_type: 'refresh_token', refresh_token: current.refreshToken, client_id: current.clientId },
 	})
-	return session(current.baseUrl, current.clientId, token, current.username)
+	return session(current.baseUrl, current.clientId, token, current)
 }
 
 export async function revokeSession(current: Session) {
