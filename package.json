@@ -1,6 +1,6 @@
 {
 	"name": "literary-universe-plugin",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "Obsidian plugin for Literary Universe integration",
 	"main": "main.js",
 	"type": "module",
