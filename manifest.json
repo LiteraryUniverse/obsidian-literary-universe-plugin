@@ -6,5 +6,6 @@
 	"author": "Jan Dvorak",
 	"authorUrl": "https://jandvorak.me",
 	"fundingUrl": "https://github.com/sponsors/storytellercz",
-	"isDesktopOnly": false
+	"isDesktopOnly": false,
+	"version": "0.2.1"
 }
