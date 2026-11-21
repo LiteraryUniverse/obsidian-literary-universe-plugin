@@ -1,7 +1,6 @@
 {
 	"id": "literary-universe",
 	"name": "Literary Universe",
-	"version": "0.2.0",
 	"minAppVersion": "1.11.4",
 	"description": "Write your Literary Universe stories and universes as Markdown notes and send your edits back as drafts.",
 	"author": "Jan Dvorak",
