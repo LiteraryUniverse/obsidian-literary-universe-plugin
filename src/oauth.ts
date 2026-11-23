@@ -92,7 +92,7 @@ const session = (baseUrl: string, clientId: string, token: TokenResponse, previo
 
 /**
  * Registers this Obsidian as its own client and returns the page to open.
- * Each vault registers separately, and the vault name in the redirect sends the
+ * Each vault registers separately, and the vault ID or name in the redirect sends the
  * browser back to the vault that asked.
  */
 export async function startSignIn(baseUrl: string, vault: string) {

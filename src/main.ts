@@ -127,7 +127,7 @@ export default class LiteraryUniversePlugin extends Plugin {
 			// The redirect names the vault to come back to. The desktop app also takes the vault's ID, which
 			// has no spaces to arrive as "+" (Obsidian doesn't read those as spaces) and is unique among vaults of one name.
 			const vaultId = Platform.isDesktopApp ? (this.app as { appId?: string }).appId : undefined
-			const { pending, url } = await startSignIn(this.settings.baseUrl, vaultId ?? this.app.vault.getName())
+			const { pending, url } = await startSignIn(this.settings.baseUrl, vaultId || this.app.vault.getName())
 			this.pending = pending
 			window.open(url)
 		} catch (error) {
