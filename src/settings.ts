@@ -49,7 +49,10 @@ export class LiteraryUniverseSettingsTab extends PluginSettingTab {
 		this.refreshAccount()
 
 		const mode = new Setting(containerEl).setName('What syncs')
-		void this.plugin.mode().then((found) => mode.setDesc('error' in found ? found.error : found.label))
+		// The callback must not return the Setting: it has a `then` method, so the promise would adopt it and spin forever.
+		void this.plugin.mode().then((found) => {
+			mode.setDesc('error' in found ? found.error : found.label)
+		})
 
 		new Setting(containerEl)
 			.setName('Folder')

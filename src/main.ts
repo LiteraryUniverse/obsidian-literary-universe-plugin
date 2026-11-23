@@ -9,7 +9,7 @@ import {
 	type VaultScope,
 	vaultStatus,
 } from '@literary-universe/sdk/vault'
-import { normalizePath, Notice, Plugin, requestUrl, stringifyYaml, TFile, TFolder } from 'obsidian'
+import { normalizePath, Notice, Platform, Plugin, requestUrl, stringifyYaml, TFile, TFolder } from 'obsidian'
 import { missingScopes } from './helpers'
 import { CategoryModal, CreateWorkModal, ImageModal, imageType, type NewWork, PublishModal, StatusModal, TextModal } from './modals'
 import {
@@ -124,7 +124,10 @@ export default class LiteraryUniversePlugin extends Plugin {
 
 	async signIn() {
 		try {
-			const { pending, url } = await startSignIn(this.settings.baseUrl, this.app.vault.getName())
+			// The redirect names the vault to come back to. The desktop app also takes the vault's ID, which
+			// has no spaces to arrive as "+" (Obsidian doesn't read those as spaces) and is unique among vaults of one name.
+			const vaultId = Platform.isDesktopApp ? (this.app as { appId?: string }).appId : undefined
+			const { pending, url } = await startSignIn(this.settings.baseUrl, vaultId || this.app.vault.getName())
 			this.pending = pending
 			window.open(url)
 		} catch (error) {
